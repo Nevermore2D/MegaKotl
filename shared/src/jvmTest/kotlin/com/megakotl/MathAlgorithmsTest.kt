@@ -10,6 +10,7 @@ import com.megakotl.core.integrateSequential
 import com.megakotl.core.resolveIntegrationBounds
 import com.megakotl.core.axisTickLabel
 import com.megakotl.core.axisTickStep
+import com.megakotl.core.visiblePartitionRange
 import com.megakotl.core.runIntegral
 import com.megakotl.features.polynomials.LagrangePolynomial
 import com.megakotl.features.polynomials.NewtonPolynomial
@@ -116,6 +117,36 @@ class MathAlgorithmsTest {
         assertNull(curve.validationError())
         assertEquals("Для сплайна [a, b] должен лежать между крайними узлами", curve.domainError(-1.0, 1.0))
         assertEquals(2.0, assertNotNull(curve.newEvaluator()).invoke(1.0), 1e-10)
+    }
+
+    @Test fun exactNumberOfPartitionsIsUsedAndReported() = runBlocking {
+        val curve = CurveDefinition(CurveKind.NEWTON,
+            listOf(GraphPoint(0.0, 0.0), GraphPoint(1.0, 1.0), GraphPoint(2.0, 4.0)), "")
+        for (n in listOf(1, 125, 400, 2000, 20_000)) {
+            val result = runIntegral(curve, 0.0, 2.0, n, IntegralMethod.LEFT, ExecutionMode.SEQUENTIAL)
+            assertEquals(n, result.partitions)
+            // Exact left-Riemann formula for x^2 on [0,2].
+            val expected = (8.0 / 3.0) - (4.0 / n) + (4.0 / (3.0 * n * n))
+            assertEquals(expected, result.values.value, 1e-9)
+        }
+    }
+
+    @Test fun overlayShowsAllCountsAndCullsOffscreenPartitions() {
+        val overOldLimit = assertNotNull(visiblePartitionRange(-5.0, 5.0, 121, -5.0, 5.0, 48.0))
+        assertEquals(0, overOldLimit.start)
+        assertEquals(121, overOldLimit.endExclusive)
+        assertTrue(!overOldLimit.dense)
+
+        val dense = assertNotNull(visiblePartitionRange(-5.0, 5.0, 20_000, -5.0, 5.0, 48.0))
+        assertEquals(0, dense.start)
+        assertEquals(20_000, dense.endExclusive)
+        assertTrue(dense.dense)
+
+        val zoomed = assertNotNull(visiblePartitionRange(-5.0, 5.0, 20_000, -0.1, 0.1, 5000.0))
+        assertTrue(!zoomed.dense)
+        assertTrue(zoomed.endExclusive - zoomed.start < 500)
+
+        assertNull(visiblePartitionRange(-5.0, 5.0, 200, 6.0, 7.0, 48.0))
     }
 
     @Test fun parallelAndSequentialHaveSameAnswer() = runBlocking {

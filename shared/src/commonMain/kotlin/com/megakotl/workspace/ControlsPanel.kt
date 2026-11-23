@@ -35,6 +35,7 @@ import com.megakotl.core.GraphPoint
 import com.megakotl.core.IntegralMethod
 import com.megakotl.core.IntegrationBounds
 import com.megakotl.core.TimedIntegral
+import com.megakotl.core.coroutineModeInfo
 
 @Composable
 internal fun ControlsPanel(
@@ -121,11 +122,12 @@ internal fun ControlsPanel(
                             { state.b = it }, Modifier.weight(1f), enabled = !state.integrateFullRange)
                         SmallField("n", state.n, { state.n = it }, Modifier.weight(1f))
                     }
-                    Text("Число разбиений — быстрое изменение (4–400)", style = MaterialTheme.typography.bodySmall)
+                    Text("Число разбиений: 1–20 000 (логарифмический ползунок)",
+                        style = MaterialTheme.typography.bodySmall)
                     Slider(
-                        value = (state.n.toFloatOrNull() ?: 40f).coerceIn(4f, 400f),
-                        onValueChange = { state.n = it.toInt().toString() },
-                        valueRange = 4f..400f
+                        value = partitionsToSlider(state.n.toIntOrNull() ?: 40),
+                        onValueChange = { state.n = sliderToPartitions(it).toString() },
+                        valueRange = 0f..1f
                     )
                     Text("Метод численного интегрирования", style = MaterialTheme.typography.labelMedium)
                     ModePicker(state.method, IntegralMethod.entries, { it.title }) { state.method = it }
@@ -140,9 +142,18 @@ internal fun ControlsPanel(
                         Text("Сравнить оба режима", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                         Switch(checked = state.compare, onCheckedChange = { state.compare = it })
                     }
-                    Text("Корутины разбивают N интервалов между независимыми задачами в Dispatchers.Default.", style = MaterialTheme.typography.bodySmall)
-                    if (state.n.toIntOrNull()?.let { it > 120 } == true) {
-                        Text("При n > 120 заливка разбиений скрыта, вычисление производится полностью.", style = MaterialTheme.typography.bodySmall)
+                    Text(coroutineModeInfo(), style = MaterialTheme.typography.bodySmall)
+                    val partitionCount = state.n.toIntOrNull()
+                    val leftBound = bounds.a
+                    val rightBound = bounds.b
+                    if (partitionCount != null && partitionCount > 0 &&
+                        leftBound != null && rightBound != null && leftBound < rightBound &&
+                        (rightBound - leftBound) * state.viewport.scale / partitionCount < 1.5
+                    ) {
+                        Text("Ширина разбиения меньше 1,5 пикселя: показывается сплошная заливка. " +
+                            "Увеличьте масштаб графика, чтобы увидеть границы прямоугольников. " +
+                            "Вычисление по-прежнему использует все n интервалов.",
+                            style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

@@ -35,6 +35,8 @@ internal fun ResultsPanel(
                     if (bounds.valid) {
                         Text("Границы: [${shortNumber(requireNotNull(bounds.a))}; ${shortNumber(requireNotNull(bounds.b))}]", style = MaterialTheme.typography.bodySmall)
                     }
+                    Text("Разбиений в вычислении: ${result.partitions}",
+                        style = MaterialTheme.typography.bodySmall)
                     Text("∫ f(x) dx ≈ ${shortNumber(result.values.value)}", style = MaterialTheme.typography.titleLarge)
                     result.values.lower?.let { Text("Нижняя выборочная сумма: ${shortNumber(it)}") }
                     result.values.upper?.let { Text("Верхняя выборочная сумма: ${shortNumber(it)}") }

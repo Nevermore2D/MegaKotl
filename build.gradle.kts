@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinMultiplatform) apply false
 }
 
 kotlin {
@@ -11,12 +12,12 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
     implementation(compose.runtime)
     implementation(compose.foundation)
     implementation(compose.material3)
     implementation(compose.ui)
-    implementation("org.mariuszgromada.math:MathParser.org-mXparser:6.1.0")
     implementation(libs.kotlinx.coroutinesSwing)
     testImplementation(kotlin("test"))
 }

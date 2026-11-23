@@ -8,12 +8,13 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlin.math.min
+import kotlin.time.TimeSource
 
 enum class ExecutionMode(val title: String) {
     SEQUENTIAL("Последовательно"), PARALLEL("Корутины")
 }
 
-data class TimedIntegral(val values: IntegralValues, val millis: Double, val workers: Int)
+data class TimedIntegral(val values: IntegralValues, val millis: Double, val workers: Int, val partitions: Int)
 
 /** Executes both modes off the UI thread. Parallel workers NEVER share an mXparser Argument. */
 suspend fun runIntegral(
@@ -24,9 +25,9 @@ suspend fun runIntegral(
     method: IntegralMethod,
     mode: ExecutionMode
 ): TimedIntegral {
-    val start = System.nanoTime()
+    val started = TimeSource.Monotonic.markNow()
     val workers = if (mode == ExecutionMode.PARALLEL) {
-        min(n, min(8, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)))
+        min(n, min(8, computationalWorkerCount()))
     } else 1
     val partial = if (mode == ExecutionMode.SEQUENTIAL || workers == 1) {
         withContext(Dispatchers.Default) {
@@ -47,6 +48,6 @@ suspend fun runIntegral(
             }.awaitAll().fold(PartialSums(0.0, 0.0, 0.0)) { acc, p -> acc + p }
         }
     }
-    val millis = (System.nanoTime() - start) / 1_000_000.0
-    return TimedIntegral(resultOf(partial, method), millis, workers)
+    val millis = started.elapsedNow().inWholeMicroseconds / 1_000.0
+    return TimedIntegral(resultOf(partial, method), millis, workers, n)
 }

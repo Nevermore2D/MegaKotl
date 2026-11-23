@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
-# Usage: bash update-megakotl.sh /path/to/MegaKotl_docs.zip "$HOME/kotl/MegaKotl"
-# RUN_APP=0 bash ...  to install without launching the application.
+# Usage: bash update-megakotl.sh /path/to/MegaKotl_web_overlay_fix.zip ~/kotl/MegaKotl
+# RUN_APP=0: do not launch Desktop after update
+# CHECK_WEB=0: skip Web validation
+# CHECK_WEB=1 (default): compile Web development executable
+# CHECK_WEB=production: also build optimized Web distribution
 set -euo pipefail
 
-archive="${1:-$HOME/Downloads/MegaKotl_docs.zip}"
+archive="${1:-$HOME/Downloads/MegaKotl_web_overlay_fix.zip}"
 destination="${2:-$HOME/kotl/MegaKotl}"
 
-if ! command -v unzip >/dev/null 2>&1; then
-  printf 'Ошибка: установите unzip\n' >&2; exit 1
-fi
-if ! command -v gradle >/dev/null 2>&1; then
-  printf 'Ошибка: не найден Gradle в PATH\n' >&2; exit 1
-fi
+for command in unzip gradle mktemp; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "Требуется команда: $command" >&2
+    exit 1
+  fi
+done
 if [[ ! -f "$archive" ]]; then
-  printf 'Архив не найден: %s\n' "$archive" >&2; exit 1
+  echo "Архив не найден: $archive" >&2
+  exit 1
 fi
 if ! unzip -tq "$archive" >/dev/null; then
-  printf 'Архив повреждён или некорректен: %s\n' "$archive" >&2; exit 1
+  echo "Архив поврежден: $archive" >&2
+  exit 1
 fi
 
 parent="$(dirname "$destination")"
@@ -27,34 +32,59 @@ installed=0
 cleanup() {
   if [[ "$installed" == 0 && -n "$backup" && -e "$backup" && ! -e "$destination" ]]; then
     mv -- "$backup" "$destination"
-    printf 'Предыдущая версия восстановлена.\n' >&2
+    echo "Старая версия восстановлена." >&2
   fi
   [[ ! -d "$staging" ]] || rm -rf -- "$staging"
 }
 trap cleanup EXIT
 
 unzip -q "$archive" -d "$staging"
-if [[ ! -f "$staging/MegaKotl/build.gradle.kts" ]]; then
-  printf 'Неожиданная структура архива; старый проект не изменён.\n' >&2
+new_project="$staging/MegaKotl"
+if [[ ! -f "$new_project/build.gradle.kts" || ! -f "$new_project/web/build.gradle.kts" || ! -f "$new_project/shared/build.gradle.kts" ]]; then
+  echo "Неожиданная структура архива; прежний проект не изменён." >&2
   exit 1
 fi
 
-printf 'Проверка компиляции новой версии до замены старой...\n'
-gradle -p "$staging/MegaKotl" compileKotlin
+# Check both applications BEFORE replacing anything.
+echo "Проверка компиляции Desktop..."
+gradle -p "$new_project" :compileKotlin
+case "${CHECK_WEB:-1}" in
+  0)
+    echo "Проверка Web пропущена (CHECK_WEB=0)."
+    ;;
+  1|development)
+    echo "Проверка WebAssembly в режиме Development..."
+    gradle -p "$new_project" :web:compileDevelopmentExecutableKotlinWasmJs
+    ;;
+  production)
+    echo "Проверка WebAssembly в режиме Production..."
+    gradle -p "$new_project" :web:wasmJsBrowserDistribution
+    ;;
+  *)
+    echo "CHECK_WEB должен быть 0, 1, development или production." >&2
+    exit 1
+    ;;
+esac
+
+# Keep git history/configuration if the existing project is already a repository.
+if [[ -d "$destination/.git" ]]; then
+  cp -a -- "$destination/.git" "$new_project/.git"
+  echo "История Git и origin будут сохранены."
+fi
 
 if [[ -e "$destination" ]]; then
   backup="${destination}.backup.$(date +%Y%m%d-%H%M%S)"
   if [[ -e "$backup" ]]; then
-    printf 'Уже существует резервная копия: %s\n' "$backup" >&2
+    echo "Резервная копия с таким именем уже есть: $backup" >&2
     exit 1
   fi
   mv -- "$destination" "$backup"
 fi
-mv -- "$staging/MegaKotl" "$destination"
+mv -- "$new_project" "$destination"
 installed=1
 
-printf '\nНовая версия установлена: %s\n' "$destination"
-if [[ -n "$backup" ]]; then printf 'Резервная копия: %s\n' "$backup"; fi
+echo "Новая версия установлена: $destination"
+if [[ -n "$backup" ]]; then echo "Резервная копия: $backup"; fi
 if [[ "${RUN_APP:-1}" == 1 ]]; then
   cd "$destination"
   gradle run

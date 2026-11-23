@@ -6,8 +6,6 @@ import com.megakotl.features.polynomials.Point as PolynomialPoint
 import com.megakotl.features.polynomials.TrigPolynomial
 import com.megakotl.features.spline.Point as SplinePoint
 import com.megakotl.features.spline.Spline
-import org.mariuszgromada.math.mxparser.Argument
-import org.mariuszgromada.math.mxparser.Expression
 import kotlin.math.abs
 
 /** A single mathematical curve is shared by the plot and all numerical methods. */
@@ -30,8 +28,7 @@ data class CurveDefinition(
     fun validationError(): String? {
         if (kind == CurveKind.FORMULA) {
             if (formula.isBlank()) return "Введите формулу f(x)"
-            val argument = Argument("x")
-            if (!Expression(formula, argument).checkSyntax()) return "Некорректная формула f(x)"
+            if (formulaSyntaxError(formula) != null) return "Некорректная формула f(x)"
             return null
         }
         if (points.size < 2) return "Нужно минимум две точки (щёлкните на графике)"
@@ -48,16 +45,7 @@ data class CurveDefinition(
         if (validationError() != null) return null
         return when (kind) {
             CurveKind.FORMULA -> {
-                val variable = Argument("x")
-                val expression = Expression(formula, variable)
-                val f: (Double) -> Double = { x ->
-                    if (!x.isFinite()) Double.NaN
-                    else {
-                        variable.argumentValue = x
-                        expression.calculate()
-                    }
-                }
-                f
+                createFormulaEvaluator(formula)
             }
             CurveKind.LAGRANGE, CurveKind.NEWTON, CurveKind.TRIGONOMETRIC -> {
                 val nodes = points.sortedBy { it.x }.map { PolynomialPoint(it.x, it.y) }.toTypedArray()

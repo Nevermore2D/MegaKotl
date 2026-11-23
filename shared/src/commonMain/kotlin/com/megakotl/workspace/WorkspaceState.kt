@@ -9,6 +9,7 @@ import com.megakotl.core.ExecutionMode
 import com.megakotl.core.GraphPoint
 import com.megakotl.core.IntegralMethod
 import com.megakotl.core.Viewport
+import com.megakotl.core.decimalLabel
 import kotlin.math.abs
 
 class WorkspaceState {
@@ -51,4 +52,4 @@ class WorkspaceState {
 }
 
 internal fun parseDouble(text: String) = text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
-internal fun shortNumber(number: Double) = if (number.isFinite()) "%.5f".format(java.util.Locale.US, number).trimEnd('0').trimEnd('.') else "—"
+internal fun shortNumber(number: Double) = if (number.isFinite()) decimalLabel(number, 5) else "—"
